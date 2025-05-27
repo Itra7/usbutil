@@ -10,6 +10,9 @@
 #define MAX_NUM_OF_INTERFACES 32
 #define MAX_NUM_OF_CONFIGURATION 2
 
+
+#define INIT_DL_LIST(list) init_list(list);
+
 struct usb_device{
     struct usb_configuration *conf[MAX_NUM_OF_CONFIGURATION];
     __u8 bNumConfiguration;
@@ -27,7 +30,6 @@ struct usb_configuration{
     __u16 bNumInterfaces;
     __u16 idProduct;
     __u16 idVendor;
-    __u8 bNumInterfaces;
     __u8 speed;
     char manufacter[MAX_LEN_MANUFACTER];
 
@@ -43,9 +45,16 @@ struct usb_interface{
     __u16 bNumEndpoints;
 };
 
+struct list_of_devices{
+    char idProduct[6];
+    char idVendor[6];
+    struct list_of_devices *prev, *next;
+};
 
-
-
+static inline void init_list(struct list_of_devices ***list_of_devices){
+    (**list_of_devices)->prev = **list_of_devices;
+    (**list_of_devices)->next = **list_of_devices;
+}
 
 #endif
 

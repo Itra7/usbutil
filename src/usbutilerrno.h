@@ -1,0 +1,6 @@
+#ifndef USBUTIL_ERRNO_H
+#define USBUTIL_ERRNO_H
+
+#define USBUTIL_EOPEN 0x10
+#define USBUTIL_MALLOC_FAIL 0x11
+#endif
