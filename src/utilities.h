@@ -1,9 +1,6 @@
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
-int usbutil_extract_id(char *, char*, struct list_of_devices***, int);
-int usbutil_list_devices(struct list_of_devices**);
-
 #define offsetof(type, member) __builtin_offsetof(type, member)
 #define typeof_member(T, m)	typeof(((T*)0)->m)
 

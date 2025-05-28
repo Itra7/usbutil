@@ -46,6 +46,8 @@ struct usb_interface{
 };
 
 struct list_of_devices{
+    char busnum[4];
+    char devnum[4];
     char idProduct[6];
     char idVendor[6];
     struct list_of_devices *prev, *next;

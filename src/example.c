@@ -5,6 +5,8 @@
 #include "usbutilerrno.h"
 #include "usbio.h"
 #include "utilities.h"
+#include "usbutil.h"
+
 
 void print_list(struct list_of_devices* devs);
 void free_list(struct list_of_devices **devs);
@@ -15,8 +17,17 @@ int main(){
         return USBUTIL_MALLOC_FAIL;
     }
     struct list_of_devices* ptr = devices;
-    if(usbutil_list_devices(&devices)){
+    
+    if(usbutil_init() != 0){
         return -1;
+    }
+
+    if(usbutil_list_devices(&devices) != 0){
+        return -1;
+    }
+    devices = ptr;
+    if(usbutil_open("505b", "320f", devices) != 0){
+        printf("some error");
     }
 
     print_list(ptr);
@@ -26,7 +37,7 @@ int main(){
 
 void print_list(struct list_of_devices* devs){
     while(devs->next != NULL){
-        printf("%s:%s\n", devs->idProduct, devs->idVendor);
+        printf("%s:%s %s:%s\n", devs->idProduct, devs->idVendor, devs->busnum, devs->devnum);
         devs = devs->next;
     }
 }
