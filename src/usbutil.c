@@ -135,7 +135,7 @@ int usbutil_extract_from_file(char *paths, char *d_name, struct list_of_devices*
     return 0;
 }
 
-const struct list_of_devices* find_proper_device(const char* idProduct, const char* idVendor, const struct list_of_devices *devs){
+static const struct list_of_devices* find_proper_device(const char* idProduct, const char* idVendor, const struct list_of_devices *devs){
     do{
         if(strcmp(idProduct, devs->idProduct) == 0 && strcmp(idVendor, devs->idVendor) == 0){
             return devs;
@@ -150,7 +150,7 @@ const struct list_of_devices* find_proper_device(const char* idProduct, const ch
 int usbutil_open(const char* idProduct, const char* idVendor, const struct list_of_devices *devs){
     const struct list_of_devices *find = find_proper_device(idProduct, idVendor, devs);
     if(find == NULL){
-        // print that doesn't extist;
+        usbutil_dbg(USBUTIL_EOPEN, "%d %s", __LINE__, __FILE__);
         return USBUTIL_NOT_FOUND;
     }
     char BBB[6];
@@ -169,7 +169,7 @@ int usbutil_open(const char* idProduct, const char* idVendor, const struct list_
     snprintf(path, sizeof(path), STRINGIFY(DEVICEIO_PATH) "/%s/%s", BBB, DDD);
     int fd = open(path, O_RDWR); // open only in sudo
     if(fd == -1){
-        return -1; // check for open fail messanges
+        return USBUTIL_EOPEN; // check for open fail messanges
     }
     
     close(fd);

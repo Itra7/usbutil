@@ -17,18 +17,21 @@ int main(){
         return USBUTIL_MALLOC_FAIL;
     }
     struct list_of_devices* ptr = devices;
-    
+    int err = 0;
     if(usbutil_init() != 0){
         return -1;
     }
 
-    if(usbutil_list_devices(&devices) != 0){
-        return -1;
+    err = usbutil_list_devices(&devices);
+    if(err != 0){
+        usbutil_dbg(err, "%s %d", __FILE__, __LINE__);
     }
     devices = ptr;
-    if(usbutil_open("505b", "320f", devices) != 0){
-        printf("some error");
+    err = usbutil_open("505b", "320f", devices);
+    if(err != 0){
+        usbutil_dbg(err, "%s %d", __FILE__, __LINE__);
     }
+
 
     print_list(ptr);
     free_list(&ptr);
