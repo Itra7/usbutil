@@ -11,22 +11,27 @@ void usbutil_dbg(int ERROR_CODE, const char *format, ...){
         fprintf(stdout, "%s ", error_msg[ERROR_CODE]);
     
         while(*format != '\0'){
-            switch(*format){
-                case 'd':{
-                    int i = va_arg(args, int);
-                    fprintf(stdout, "%d ", i);
-                    break;
+            if(*format == '%' && *(format+1)){
+                format++;
+                switch(*format){
+                    case 'd':{
+                        int i = va_arg(args, int);
+                        fprintf(stdout, "%d ", i);
+                        break;
+                    }
+                    case 'c':{
+                        int c = va_arg(args, int);
+                        fprintf(stdout, "%c ", c);
+                        break;
+                    }
+                    case 's':{
+                        char* str = va_arg(args, char*);
+                        fprintf(stdout, "%s ", str);
+                        break;
+                    }
                 }
-                case 'c':{
-                    int c = va_arg(args, int);
-                    fprintf(stdout, "%c ", c);
-                    break;
-                }
-                case 's':{
-                    char* str = va_arg(args, char*);
-                    fprintf(stdout, "%s ", str);
-                    break;
-                }
+            }else{
+                fprintf(stdout, "%c", *format);
             }
             ++format;
         }
@@ -35,4 +40,4 @@ void usbutil_dbg(int ERROR_CODE, const char *format, ...){
         va_end(args);
     #endif
         return;
-}    
+}
