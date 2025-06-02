@@ -11,6 +11,7 @@
 #define USBUTIL_GETKERNEL 0x12
 #define USBUTIL_KERNELVERSION 0x13
 #define USBUTIL_NOT_FOUND 0x14
+#define USBUTIL_IOCTL_FAIL 0x15
 
 void usbutil_dbg(int ERROR_CODE, const char *format, ...);
 void usbutil_printf(const char* format, ...);
@@ -21,7 +22,8 @@ static const char *error_msg[] ={
     [USBUTIL_MALLOC_FAIL] = "Failed to allocate memory",
     [USBUTIL_GETKERNEL] = "Failed to get kernel information",
     [USBUTIL_KERNELVERSION] = "Failed to get kernel version",
-    [USBUTIL_NOT_FOUND] = "File not found"
+    [USBUTIL_NOT_FOUND] = "File not found",
+    [USBUTIL_IOCTL_FAIL] = "Ioctl fail"
 };
 
 #endif

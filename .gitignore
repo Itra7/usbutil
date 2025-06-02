@@ -1,4 +1,6 @@
 src/plan.txt
+src/example.c
 src/example
 .gdb_history
+src/.gdb_history
 .vscode

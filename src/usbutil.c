@@ -7,12 +7,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <sys/ioctl.h>
 
 #include "usbconf.h"
 #include "utilities.h"
 #include "usbutil.h"
 #include "usbutilerrno.h"
 #include "usbutilList.h"
+#include "usbio.h"
 
 
 #define EXTRACT_IDPRODUCT (1<<2)
@@ -225,5 +227,34 @@ int sysfs_fd_open(const char* device, const char* file_name, const int flags){
     return fd;
 }
 
+void get_device_speed(struct usb_device** usb_device){
+    int fd = (*usb_device)->fd;
+    __u8 speed = ioctl(fd, USBUTIL_USBDEVFS_GET_SPEED);
+    (*usb_device)->device_speed = speed;
+}
 
 
+int get_capabilites(struct usb_device** usb_device){
+    int fd = (*usb_device)->fd;
+    __u32 capabilities;
+    if(ioctl(fd, USBUTIL_USBDEVFS_GET_CAPABILITIES, &capabilities) < 0){
+        usbutil_dbg(USBUTIL_IOCTL_FAIL, " Failed to get capabilites %s %d", __FILE__, __LINE__);
+        return USBUTIL_IOCTL_FAIL;
+    }
+    (*usb_device)->capabilities = capabilities;
+    return 0;
+}
+
+int drop_privilegies(struct usb_device** usb_device, int capability){
+    // if this capability was alreardy droped
+    if((*usb_device)->capabilities & capability == 0){
+        return 0;
+    }
+    int fd = (*usb_device)->fd;
+    if(ioctl(fd, USBUTIL_USBDEVFS_DROP_PRIVILEGES, &capability) < 0){
+        usbutil_dbg(USBUTIL_IOCTL_FAIL, " Ioctl fail on drop privilegies %s %d", __FILE__, __LINE__);
+        return USBUTIL_IOCTL_FAIL;
+    }
+    (*usb_device)->capabilities = (*usb_device)->capabilities & ~(capability);
+    return 0;
+}
