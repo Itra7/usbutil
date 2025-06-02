@@ -2,6 +2,7 @@
 #define USBCONF_H
 
 #include <linux/types.h>
+#include "usbutilList.h"
 
 #define SYSPATH /sys/bus/usb/devices
 #define DEVICEIO_PATH /dev/bus/usb
@@ -50,13 +51,8 @@ struct list_of_devices{
     char devnum[4];
     char idProduct[6];
     char idVendor[6];
-    struct list_of_devices *prev, *next;
+    struct list_head list;
 };
-
-static inline void init_list(struct list_of_devices ***list_of_devices){
-    (**list_of_devices)->prev = **list_of_devices;
-    (**list_of_devices)->next = **list_of_devices;
-}
 
 #endif
 

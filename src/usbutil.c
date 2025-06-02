@@ -12,6 +12,7 @@
 #include "utilities.h"
 #include "usbutil.h"
 #include "usbutilerrno.h"
+#include "usbutilList.h"
 
 
 #define EXTRACT_IDPRODUCT (1<<2)
@@ -40,13 +41,20 @@ int usbutil_init(){
 
 // TODO: add functionality for printing manufactured
 
-int usbutil_list_devices(struct list_of_devices** list_of_devices){
-    
-    INIT_DL_LIST(&list_of_devices);
+int usbutil_list_devices(struct list_of_devices **ptr){
+    struct list_of_devices *devs = malloc(sizeof(struct list_of_devices));
+    if(devs == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, "%s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+
+    list_init(&devs->list);    
+    struct list_of_devices *copy_pointer = devs;
     
     struct dirent *entry;
     DIR* dir = opendir(STRINGIFY(SYSPATH));
     if(dir == NULL){
+        usbutil_dbg(USBUTIL_EOPEN, "Failed to open dir %s %d", __FILE__, __LINE__);
         return USBUTIL_EOPEN;
     }
 
@@ -66,48 +74,57 @@ int usbutil_list_devices(struct list_of_devices** list_of_devices){
     for(int i = 0; i < counter; i++){
         dir = opendir(paths[i]);
         if(dir == NULL){
+            usbutil_dbg(USBUTIL_EOPEN, "Failed to open dir %s %d", __FILE__, __LINE__);
             return USBUTIL_EOPEN;
         }
         while((entry = readdir(dir)) != NULL){
             if(entry->d_type == DT_REG){
                 if(!strcmp(entry->d_name, "idProduct")){
-                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &list_of_devices, EXTRACT_IDPRODUCT);
+                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &devs, EXTRACT_IDPRODUCT);
                     if(id == USBUTIL_EOPEN){ 
+                        usbutil_dbg(USBUTIL_EOPEN, "Failed to open file %s %d", __FILE__, __LINE__);
                         return USBUTIL_EOPEN;
                     }
                 }else if(!strcmp(entry->d_name, "idVendor")){
-                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &list_of_devices, EXTRACT_IDVENDOR);
+                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &devs, EXTRACT_IDVENDOR);
                     if(id == USBUTIL_EOPEN){
+                        usbutil_dbg(USBUTIL_EOPEN, "Failed to open file %s %d", __FILE__, __LINE__);
                         return USBUTIL_EOPEN;
                     }
                 }else if(!strcmp(entry->d_name, "busnum")){
-                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &list_of_devices, EXTRACT_BUSNUM);
+                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &devs, EXTRACT_BUSNUM);
                     if(id == USBUTIL_EOPEN){
+                        usbutil_dbg(USBUTIL_EOPEN, "Failed to open file %s %d", __FILE__, __LINE__);
                         return USBUTIL_EOPEN;
                     }
                 }else if(!strcmp(entry->d_name, "devnum")){
-                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &list_of_devices, EXTRACT_DEVNUM);
+                    int id = usbutil_extract_from_file(paths[i], entry->d_name, &devs, EXTRACT_DEVNUM);
                     if(id == USBUTIL_EOPEN){
+                        usbutil_dbg(USBUTIL_EOPEN, "Failed to open file %s %d", __FILE__, __LINE__);
                         return USBUTIL_EOPEN;
                     }
                 }
             }
         }
-        (*list_of_devices)->next = malloc(sizeof(struct list_of_devices));
-        if(*list_of_devices == NULL){
-            return USBUTIL_MALLOC_FAIL;
+
+        struct list_of_devices *_devs = malloc(sizeof(struct list_of_devices));
+        if(_devs == NULL){
+            usbutil_dbg(USBUTIL_MALLOC_FAIL, "%s %d", __FILE__, __LINE__);
+            return USBUTIL_MALLOC_FAIL;    
         }
-        (*list_of_devices)->next->prev = *list_of_devices;
-        *list_of_devices = (*list_of_devices)->next;
-        (*list_of_devices)->next = NULL;
+        list_add(&devs->list, &_devs->list);
+
+        devs = extract_next_from_list(&(devs->list), struct list_of_devices, list);
+        devs->list.next = NULL;
         closedir(dir);
     }
 
+    *ptr = copy_pointer;
 
     return 0;
 }
 
-int usbutil_extract_from_file(char *paths, char *d_name, struct list_of_devices*** list_of_devices, int flag){
+int usbutil_extract_from_file(char *paths, char *d_name, struct list_of_devices** list_of_devices, int flag){
     char filepath[MAX_PATH];
     snprintf(filepath, MAX_PATH, "%s/%s", paths, d_name);
     int fd = open(filepath, O_RDONLY);
@@ -119,38 +136,40 @@ int usbutil_extract_from_file(char *paths, char *d_name, struct list_of_devices*
     buf[cnt] = '\0';
     cnt--;
     if(flag == EXTRACT_IDPRODUCT){
-        strncpy((**list_of_devices)->idProduct, buf, sizeof((**list_of_devices)->idProduct));
-        (**list_of_devices)->idProduct[cnt] = '\0';
+        strncpy((*list_of_devices)->idProduct, buf, sizeof((*list_of_devices)->idProduct));
+        (*list_of_devices)->idProduct[cnt] = '\0';
     }else if(flag == EXTRACT_IDVENDOR){
-        strncpy((**list_of_devices)->idVendor, buf, sizeof((**list_of_devices)->idVendor));
-        (**list_of_devices)->idVendor[cnt] = '\0';
+        strncpy((*list_of_devices)->idVendor, buf, sizeof((*list_of_devices)->idVendor));
+        (*list_of_devices)->idVendor[cnt] = '\0';
     }else if(flag == EXTRACT_DEVNUM){
-        strncpy((**list_of_devices)->devnum, buf, sizeof((**list_of_devices)->devnum));
-        (**list_of_devices)->devnum[cnt] = '\0';
+        strncpy((*list_of_devices)->devnum, buf, sizeof((*list_of_devices)->devnum));
+        (*list_of_devices)->devnum[cnt] = '\0';
     }else if(flag == EXTRACT_BUSNUM){
-        strncpy((**list_of_devices)->busnum, buf, sizeof((**list_of_devices)->busnum));
-        (**list_of_devices)->busnum[cnt] = '\0';
+        strncpy((*list_of_devices)->busnum, buf, sizeof((*list_of_devices)->busnum));
+        (*list_of_devices)->busnum[cnt] = '\0';
     }
     close(fd);
     return 0;
 }
 
-static const struct list_of_devices* find_proper_device(const char* idProduct, const char* idVendor, const struct list_of_devices *devs){
-    do{
+static struct list_of_devices* find_proper_device(const char* idProduct, const char* idVendor, struct list_of_devices *devs){
+    struct list_head *_list;
+    struct list_head *senitel = &devs->list;
+    list_for_each(_list, senitel){
+        devs = extract_from_list(_list, struct list_of_devices, list);
         if(strcmp(idProduct, devs->idProduct) == 0 && strcmp(idVendor, devs->idVendor) == 0){
             return devs;
         }
-        devs = devs->next;
-    }while(devs != NULL);
+    }
 
     return NULL; // not found
 }
 
 
-int usbutil_open(const char* idProduct, const char* idVendor, const struct list_of_devices *devs){
-    const struct list_of_devices *find = find_proper_device(idProduct, idVendor, devs);
+int usbutil_open(const char* idProduct, const char* idVendor, struct list_of_devices *devs){
+    struct list_of_devices *find = find_proper_device(idProduct, idVendor, devs);
     if(find == NULL){
-        usbutil_dbg(USBUTIL_EOPEN, "%d %s", __LINE__, __FILE__);
+        usbutil_dbg(USBUTIL_NOT_FOUND, "%d %s", __LINE__, __FILE__);
         return USBUTIL_NOT_FOUND;
     }
     char BBB[6];
@@ -171,8 +190,40 @@ int usbutil_open(const char* idProduct, const char* idVendor, const struct list_
     if(fd == -1){
         return USBUTIL_EOPEN; // check for open fail messanges
     }
-    
+
     close(fd);
     return 0;
-
 }
+
+// Implement check if flags are set
+int sysfs_fd_open(const char* device, const char* file_name, const int flags){
+    if(file_name == NULL || device == NULL){
+        usbutil_dbg(USBUTIL_EOPEN, "Didn't passed file name or flags %s %d", __FILE__, __LINE__);
+        return USBUTIL_EOPEN;
+    }
+
+    char path[256];
+    snprintf(path, sizeof(path), "%s/%s/%s", STRINGIFY(SYSPATH), device, file_name);
+
+    int fd = open(path, flags);
+    if(fd == -1){
+        switch(errno){
+            case EACCES:
+                usbutil_dbg(USBUTIL_EOPEN, " Access error %s %d", __FILE__, __LINE__);
+                break;
+            case EISDIR:
+                usbutil_dbg(USBUTIL_EOPEN, " File is directory %s %d", __FILE__, __LINE__);
+                break;
+            case ENOENT:
+                usbutil_dbg(USBUTIL_EOPEN, " File doesn't exist %s %d", __FILE__, __LINE__);
+                break;
+            default:
+                usbutil_dbg(USBUTIL_EOPEN, "Unkown openfile error %s %d", __FILE__, __LINE__);
+                break;
+        }
+    }
+    return fd;
+}
+
+
+
