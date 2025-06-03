@@ -258,3 +258,45 @@ int drop_privilegies(struct usb_device** usb_device, int capability){
     (*usb_device)->capabilities = (*usb_device)->capabilities & ~(capability);
     return 0;
 }
+
+/* Only for USB 3.0 or newest devices and wMaxStreams > 0 */
+int alloc_stream(struct usb_device* usb_device, struct usbdevfs_streams stream){
+    int fd = usb_device->fd;
+    /* add check for wMaxStreams */
+    if(!(usb_device->device_speed == USB_SPEED_SUPER || usb_device->device_speed == USB_SPEED_SUPER_PLUS)){
+        usbutil_dbg(USBUTIL_NOT_SUPPORTED, " Allocate stream%s %d", __FILE__, __LINE__);
+        return USBUTIL_NOT_SUPPORTED;
+    }
+    if(ioctl(fd, USBUTIL_USBDEVFS_ALLOC_STREAMS, stream) < 0){
+        usbutil_dbg(USBUTIL_IOCTL_FAIL, " Ioctl fail on alloc stream %s %d", __FILE__, __LINE__);
+        return USBUTIL_IOCTL_FAIL;
+    }
+
+    return 0;
+
+}
+
+int free_stream(struct usb_device* usb_device, struct usbdevfs_streams stream){
+    int fd = usb_device->fd;
+    if(!(usb_device->device_speed == USB_SPEED_SUPER || usb_device->device_speed == USB_SPEED_SUPER_PLUS)){
+        usbutil_dbg(USBUTIL_NOT_SUPPORTED, " Free stream%s %d", __FILE__, __LINE__);
+        return USBUTIL_NOT_SUPPORTED;
+    }
+    if(ioctl(fd, USBUTIL_USBDEVFS_FREE_STREAMS, stream) < 0){
+        usbutil_dbg(USBUTIL_IOCTL_FAIL, " Ioctl fail on alloc stream %s %d", __FILE__, __LINE__);
+        return USBUTIL_IOCTL_FAIL;
+    }
+    
+    return 0;
+}
+
+int reap_urb(struct usb_device* usb_device, struct usbdevfs_urb *reap){
+    int fd = usb_device->fd;
+    if(ioctl(fd, USBUTIL_USBDEVFS_REAPURB, &reap) < 0){
+        usbutil_dbg(USBUTIL_IOCTL_FAIL, " Ioctl fail on reap urb %s %d", __FILE__, __LINE__);
+        return USBUTIL_IOCTL_FAIL;
+    }
+    return 0;
+}
+
+
