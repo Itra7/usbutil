@@ -10,47 +10,60 @@
 
 #define MAX_LEN_MANUFACTER 64
 #define MAX_NUM_OF_INTERFACES 32
+#define MAX_NUM_OF_ENDPOINTS 32
 #define MAX_NUM_OF_CONFIGURATION 2
 
+struct usb_desc{
+    __u8 bLength;
+    __u8 bDescriptorType;
+    __u8 bDeviceClass;
+    __u8 bDeviceSubClass;
+    __u8 bDeviceProtocol;
+    __u8 bMaxPacketSize0;
+    __u8 iManufacturer;
+    __u8 iProduct;
+    __u8 iSerial;
+    __u8 bNumConfigurations;
+    char* bcdDevice;
+    char* bcdUSB;
 
-#define INIT_DL_LIST(list) init_list(list);
-
-struct usb_device_desc{
-    __u8 bNumConfiguration;
+    struct usb_configuration_desc *usb_configuration_desc[MAX_NUM_OF_CONFIGURATION]; 
 };
 
 struct usb_configuration_desc{
-    __u16 bcdDevice;
-    __u16 ConfigurationValue;
-    __u16 bDeviceClass;
-    __u16 bDeviceSubClass;
-    __u16 bDeviceProtocol;
-    __u16 bmAttributes;
-    __u32 bMaxPacketSize;
-    __u16 bMaxPower;
-    __u16 bNumInterfaces;
-    __u16 idProduct;
-    __u16 idVendor;
-    __u8 speed;
-    char manufacter[MAX_LEN_MANUFACTER];
+    __u8 bLength;
+    __u8 bDescriptorType;
+    __u8 bNumInterfaces;
+    __u8 bConfigurationValue;
+    __u8 iConfiguration;
+    __u8 bmAttributes;
 
+    char* wTotalLength;
+
+    struct usb_interface_desc *usb_interface_desc[MAX_NUM_OF_INTERFACES];
 };
 
 struct usb_interface_desc{
-    __u16 bAlternateSetting;
-    __u16 bInterfaceClass;
-    __u16 bInterfaceNumber;
-    __u16 bInterfaceProtocol;
-    __u16 bInterfaceSubClass;
-    __u16 bNumEndpoints;
+    __u8 bLength;
+    __u8 bDescriptorType;        
+    __u8 bInterfaceNumber;       
+    __u8 bAlternateSetting;      
+    __u8 bNumEndpoints;     
+    __u8 bInterfaceClass;         
+    __u8 bInterfaceSubClass;      
+    __u8 bInterfaceProtocol;    
+    __u8 iInterface;     
+    struct usb_endpoint_desc *usb_endpoint_desc[MAX_NUM_OF_ENDPOINTS];    
 };
 
-struct list_of_devices{
-    char busnum[4];
-    char devnum[4];
-    char idProduct[6];
-    char idVendor[6];
-    struct list_head list;
+struct usb_endpoint_desc{
+    __u8    bLength;                        
+    __u8    bEndpointAddress;
+    __u8    bmAttributes;                     
+    __u32   wMaxPacketSize;
+    __u8    bInterval;    
+    char*   type;    
+
 };
 
 enum usb_device_speed {
@@ -83,14 +96,21 @@ enum usb_device_state {
 
 
 struct usb_device{
-
-    __u8 device_speed;
-    __u8 device_state;
+    enum usb_device_speed device_speed;
+    enum usb_device_state device_state;
     __u32 capabilities;
     int fd;
-
+    char sysfs_path[256*2];    
+    char busnum[4];
+    char devnum[4];
+    char idProduct[6];
+    char idVendor[6];
+    struct usb_desc* dev;
+    struct usb_endpoint_desc endpoint0;
+    struct list_head list;
     struct kref kref; 
 };
+
 
 #endif
 

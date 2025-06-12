@@ -1,6 +1,8 @@
 #ifndef USBUTILLIST_H
 #define USBUTILLIST_H
 
+#define INIT_DL_LIST(list) init_list(list);
+
 #include "utilities.h"
 
 struct list_head{
