@@ -12,9 +12,6 @@
 #include "usbutilList.h"
 
 
-void print_list(struct usb_device *devs);
-void free_list(struct usb_device *devs);
-
 int main(){
     struct usb_device* devices;
    
@@ -35,15 +32,19 @@ int main(){
     //     return err;
     // }
 
-    print_list(devices);
+    print_usb_list(devices);
 
-    devices->dev = read_usb_device("/sys/bus/usb/devices/1-1");
+    devices->dev = read_usb_device("/sys/bus/usb/devices/1-1", &devices->endpoint0);
 
-    printf("bLength = %d\n", devices->dev->bMaxPacketSize0);
+    
 
-    free_usb_info(&devices->dev);
+    printf("bLength = %d %s\n", devices->dev->bMaxPacketSize0, devices->dev->usb_configuration_desc[0]->usb_interface_desc[0]->usb_endpoint_desc[0]->type);
 
-    free_list(devices);
+
+
+    free_usb_info(&devices->dev, devices->endpoint0);
+
+    free_usb_list(devices);
 
     
 

@@ -358,7 +358,14 @@ struct usb_interface_desc* read_usb_interface(const char* path){
             if(entry->d_name[0] == 'e' && entry->d_name[1] == 'p'){
                 char _path[256*2];
                 snprintf(_path, sizeof(_path), "%s/%s/", path, entry->d_name);
-                usb_interface_desc->usb_endpoint_desc[endpoint_num++] = read_usb_endpoint(_path);
+                
+                struct usb_endpoint_desc* usb_endpoint_desc = read_usb_endpoint(_path);
+                if(usb_endpoint_desc != NULL){
+                    usb_interface_desc->usb_endpoint_desc[endpoint_num++] = usb_endpoint_desc;
+                }else{
+                    usbutil_dbg(USBUTIL_MALLOC_FAIL, " Failed to retrieve info %s %d" __FILE__, __LINE__);
+                    return NULL;
+                }
             }
         }
 
@@ -377,12 +384,13 @@ struct usb_interface_desc* read_usb_interface(const char* path){
 }
 
 
-struct usb_desc* read_usb_device(const char* path){
+struct usb_desc* read_usb_device(const char* path, struct usb_endpoint_desc** endpoint0){
     char* last = strrchr(path, '/');
     last++;
     if(last[0] == 'u'){ // usb_root;
         return NULL;
     }
+    
     DIR* dir = opendir(path);
     if(dir == NULL){
         usbutil_dbg(USBUTIL_EOPEN, " Failed to open directory %s %d", __FILE__, __LINE__);
@@ -400,6 +408,8 @@ struct usb_desc* read_usb_device(const char* path){
         usbutil_dbg(USBUTIL_MALLOC_FAIL, " Failed to malloc usb_desc %s %d", __FILE__, __LINE__);
         return NULL;
     }
+
+
     
 
     /*  USB descriptor and USB configuration is stored in same file.
@@ -413,10 +423,27 @@ struct usb_desc* read_usb_device(const char* path){
             if(entry->d_name[0] - '0' >= 0 && entry->d_name[0] - '0' <= 9){
                 char _path[256*2];
                 snprintf(_path, sizeof(_path), "%s/%s/", path, entry->d_name);
+
+                struct usb_interface_desc* usb_interface_desc = read_usb_interface(_path);
+
+                if(usb_interface_desc != NULL){
+                    usb_desc->usb_configuration_desc[0]->usb_interface_desc[interface_num++] = usb_interface_desc;
+                }else{
+                    usbutil_dbg(USBUTIL_MALLOC_FAIL, " Failed to retrieve info %s %d" __FILE__, __LINE__);
+                    return NULL;
+                }
         
-                usb_desc->usb_configuration_desc[0]->usb_interface_desc[interface_num++] = read_usb_interface(_path);
             }else if(entry->d_name[0] == 'e' && entry->d_name[1] == 'p'){
-                // process ep_0
+                char _path[256*2];
+                snprintf(_path, sizeof(_path), "%s/%s/", path, entry->d_name);
+                struct usb_endpoint_desc* usb_endpoint_desc = read_usb_endpoint(_path);
+
+                if(usb_endpoint_desc != NULL){
+                    *endpoint0 = usb_endpoint_desc;
+                }else{
+                    usbutil_dbg(USBUTIL_MALLOC_FAIL, " Failed to retrieve info %s %d" __FILE__, __LINE__);
+                    return NULL;
+                }
             }
         }
 
@@ -432,7 +459,7 @@ struct usb_desc* read_usb_device(const char* path){
                 if(strcmp(entry->d_name, _usb_cofiguration_desc[i].name) == 0){
                     char _path[256*2];
                     snprintf(_path, sizeof(_path), "%s/%s/", path, entry->d_name);
-                    read_and_set_field(usb_desc->usb_configuration_desc[0], _path, _usb_desc[i].type, _usb_desc[i].offset);                    
+                    read_and_set_field(usb_desc->usb_configuration_desc[0], _path, _usb_cofiguration_desc[i].type, _usb_cofiguration_desc[i].offset);                    
                 }
             }
         }
@@ -441,12 +468,13 @@ struct usb_desc* read_usb_device(const char* path){
     return usb_desc;
 }
 
-void free_usb_info(struct usb_desc** dev){
+void free_usb_info(struct usb_desc** dev, struct usb_endpoint_desc* endpoint0){
     if(*dev == NULL){
         return;
     }
-    free((*dev)->bcdDevice);
-    free((*dev)->bcdUSB);
+    if((*dev)->bcdDevice != NULL){
+        free((*dev)->bcdDevice);
+    }
 
     for(int j = 0; j < (*dev)->bNumConfigurations; j++){
         for(int i = 0; i < (*dev)->usb_configuration_desc[j]->bNumInterfaces; i++){
@@ -456,13 +484,14 @@ void free_usb_info(struct usb_desc** dev){
             }   
             free((*dev)->usb_configuration_desc[j]->usb_interface_desc[i]);
         }
-        free((*dev)->usb_configuration_desc[j]->wTotalLength);
         free((*dev)->usb_configuration_desc[j]);
     }
     free(*dev);
+    free(endpoint0->type);
+    free(endpoint0);
 }
 
-void print_list(struct usb_device* devs){
+void print_usb_list(struct usb_device* devs){
     struct list_head *_list;
     struct list_head *senitel = &devs->list;
     list_for_each(_list, senitel){
@@ -472,7 +501,7 @@ void print_list(struct usb_device* devs){
     }
 }
 
-void free_list(struct usb_device *devs){
+void free_usb_list(struct usb_device *devs){
     struct list_head *_list;
     struct list_head *senitel = &devs->list;
     int i = 0;
@@ -484,7 +513,12 @@ void free_list(struct usb_device *devs){
     }
 }
 
+
+
 /* IOCTL commands */
+
+
+
 
 void get_device_speed(struct usb_device* usb_device){
     int fd = usb_device->fd;
@@ -556,5 +590,6 @@ int reap_urb(struct usb_device* usb_device, struct usbdevfs_urb *reap){
     }
     return 0;
 }
+
 
 

@@ -21,7 +21,6 @@ typedef struct {
 static const field_info _usb_desc[] = {
     {"bLength", offsetof(struct usb_desc, bLength), TYPE_U8},
     {"bDescriptorType", offsetof(struct usb_desc, bDescriptorType), TYPE_U8},
-    {"bcdUSB", offsetof(struct usb_desc, bcdUSB), TYPE_STRING},
     {"bDeviceClass", offsetof(struct usb_desc, bDeviceClass), TYPE_U8},
     {"bDeviceSubClass", offsetof(struct usb_desc, bDeviceSubClass), TYPE_U8},
     {"bDeviceProtocol", offsetof(struct usb_desc, bDeviceProtocol), TYPE_U8},
@@ -36,7 +35,6 @@ static const field_info _usb_desc[] = {
 static const field_info _usb_cofiguration_desc[] = {
     {"bLength", offsetof(struct usb_configuration_desc, bLength), TYPE_U8},
     {"bDescriptorType", offsetof(struct usb_configuration_desc, bDescriptorType), TYPE_U8},
-    {"wTotalLength", offsetof(struct usb_configuration_desc, wTotalLength), TYPE_STRING},
     {"bNumInterfaces", offsetof(struct usb_configuration_desc, bNumInterfaces), TYPE_U8},
     {"bConfigurationValue", offsetof(struct usb_configuration_desc, bConfigurationValue), TYPE_U8},
     {"iConfiguration", offsetof(struct usb_configuration_desc, iConfiguration), TYPE_U8},
@@ -64,11 +62,11 @@ static const field_info _usb_endpoint_desc[] = {
     {"bInterval", offsetof(struct usb_endpoint_desc, bInterval), TYPE_U8},
 };
 
-void free_usb_info(struct usb_desc** dev);
-void free_list(struct usb_device *devs);
-void print_list(struct usb_device *devs);
+void free_usb_info(struct usb_desc** dev, struct usb_endpoint_desc*);
+void free_usb_list(struct usb_device *devs);
+void print_usb_list(struct usb_device *devs);
 
-struct usb_desc* read_usb_device(const char* path);
+struct usb_desc* read_usb_device(const char* path, struct usb_endpoint_desc**);
 int sysfs_fd_open(const char* device, const char* file_name, const int flags);
 int usbutil_extract_from_file(char *, char*, struct usb_device**, int);
 int usbutil_list_devices(struct usb_device**);

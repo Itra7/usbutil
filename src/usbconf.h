@@ -25,7 +25,6 @@ struct usb_desc{
     __u8 iSerial;
     __u8 bNumConfigurations;
     char* bcdDevice;
-    char* bcdUSB;
 
     struct usb_configuration_desc *usb_configuration_desc[MAX_NUM_OF_CONFIGURATION]; 
 };
@@ -37,8 +36,6 @@ struct usb_configuration_desc{
     __u8 bConfigurationValue;
     __u8 iConfiguration;
     __u8 bmAttributes;
-
-    char* wTotalLength;
 
     struct usb_interface_desc *usb_interface_desc[MAX_NUM_OF_INTERFACES];
 };
@@ -62,8 +59,7 @@ struct usb_endpoint_desc{
     __u8    bmAttributes;                     
     __u32   wMaxPacketSize;
     __u8    bInterval;    
-    char*   type;    
-
+    char*   type;
 };
 
 enum usb_device_speed {
@@ -106,7 +102,7 @@ struct usb_device{
     char idProduct[6];
     char idVendor[6];
     struct usb_desc* dev;
-    struct usb_endpoint_desc endpoint0;
+    struct usb_endpoint_desc* endpoint0;
     struct list_head list;
     struct kref kref; 
 };
