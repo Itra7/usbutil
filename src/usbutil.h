@@ -65,6 +65,8 @@ static const field_info _usb_endpoint_desc[] = {
 };
 
 void free_usb_info(struct usb_desc** dev);
+void free_list(struct usb_device *devs);
+void print_list(struct usb_device *devs);
 
 struct usb_desc* read_usb_device(const char* path);
 int sysfs_fd_open(const char* device, const char* file_name, const int flags);

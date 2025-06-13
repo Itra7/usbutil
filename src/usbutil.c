@@ -459,8 +459,29 @@ void free_usb_info(struct usb_desc** dev){
         free((*dev)->usb_configuration_desc[j]->wTotalLength);
         free((*dev)->usb_configuration_desc[j]);
     }
-
     free(*dev);
+}
+
+void print_list(struct usb_device* devs){
+    struct list_head *_list;
+    struct list_head *senitel = &devs->list;
+    list_for_each(_list, senitel){
+        devs = container_of(_list, struct usb_device, list);
+        if(devs->list.next == NULL) break;
+        printf("%s:%s %s:%s\n", devs->idProduct, devs->idVendor, devs->busnum, devs->devnum);
+    }
+}
+
+void free_list(struct usb_device *devs){
+    struct list_head *_list;
+    struct list_head *senitel = &devs->list;
+    int i = 0;
+    list_for_each(_list, senitel){
+        devs = container_of(_list, struct usb_device, list);
+        free(devs);
+        printf("freed=%d", i);
+        i++;
+    }
 }
 
 /* IOCTL commands */
