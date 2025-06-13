@@ -64,51 +64,8 @@ static const field_info _usb_endpoint_desc[] = {
     {"bInterval", offsetof(struct usb_endpoint_desc, bInterval), TYPE_U8},
 };
 
-// const char* usb_interface_desc_members[] = {
-//     "bLength",
-//     "bDescriptorType",
-//     "bcdUSB",
-//     "bDeviceClass",
-//     "bDeviceSubClass",
-//     "bDeviceProtocol",
-//     "bMaxPacketSize0",
-//     "bcdDevice",
-//     "iManufacturer",
-//     "iProduct",
-//     "iSerial",
-//     "bNumConfigurations"
-// };
+void free_usb_info(struct usb_desc** dev);
 
-// const char* usb_configuration_members[] = {
-//     "bLenght",
-//     "bDescriptorType",
-//     "wTotalLenght",
-//     "bNumInterfaces",
-//     "bConfigurationValue",
-//     "iConfiguration",
-//     "bmAttributes",
-// };
-
-// const char* usb_interface_members[] = {
-//     "bLenght",
-//     "bDescriptorType",        
-//     "bInterfaceNumber",       
-//     "bAlternateSetting",      
-//     "bNumEndpoints",
-//     "bInterfaceClass",         
-//     "bInterfaceSubClass",      
-//     "bInterfaceProtocol",   
-//     "iInterface"
-// };
-
-// const char* usb_endpoint_members[] = {
-//     "bLength",                 
-//     "bDescriptorType",         
-//     "bEndpointAddress",     
-//     "bmAttributes",                
-//     "wMaxPacketSize",    
-//     "bInterval",
-// };
 struct usb_desc* read_usb_device(const char* path);
 int sysfs_fd_open(const char* device, const char* file_name, const int flags);
 int usbutil_extract_from_file(char *, char*, struct usb_device**, int);

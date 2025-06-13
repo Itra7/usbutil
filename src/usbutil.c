@@ -441,7 +441,27 @@ struct usb_desc* read_usb_device(const char* path){
     return usb_desc;
 }
 
+void free_usb_info(struct usb_desc** dev){
+    if(*dev == NULL){
+        return;
+    }
+    free((*dev)->bcdDevice);
+    free((*dev)->bcdUSB);
 
+    for(int j = 0; j < (*dev)->bNumConfigurations; j++){
+        for(int i = 0; i < (*dev)->usb_configuration_desc[j]->bNumInterfaces; i++){
+            for(int k = 0; k < (*dev)->usb_configuration_desc[j]->usb_interface_desc[i]->bNumEndpoints; k++){
+                free((*dev)->usb_configuration_desc[j]->usb_interface_desc[i]->usb_endpoint_desc[k]->type);
+                free((*dev)->usb_configuration_desc[j]->usb_interface_desc[i]->usb_endpoint_desc[k]);
+            }   
+            free((*dev)->usb_configuration_desc[j]->usb_interface_desc[i]);
+        }
+        free((*dev)->usb_configuration_desc[j]->wTotalLength);
+        free((*dev)->usb_configuration_desc[j]);
+    }
+
+    free(*dev);
+}
 
 /* IOCTL commands */
 

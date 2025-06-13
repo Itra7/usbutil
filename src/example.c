@@ -41,6 +41,8 @@ int main(){
 
     printf("bLength = %d\n", devices->dev->bMaxPacketSize0);
 
+    free_usb_info(&devices->dev);
+
     free_list(devices);
 
     
