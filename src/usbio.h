@@ -4,6 +4,8 @@
 #include <linux/types.h>
 #include <linux/magic.h>
 
+#include "usbconf.h"
+
 /* --------------------------------------------------------------------- */
 
 /* usbdevfs ioctl codes */
@@ -130,6 +132,120 @@ struct usbdevfs_hub_portinfo {
 #define USBUTIL_USBDEVFS_CAP_DROP_PRIVILEGES		0x40
 #define USBUTIL_USBDEVFS_CAP_CONNINFO_EX		0x80
 #define USBUTIL_USBDEVFS_CAP_SUSPEND			0x100
+
+
+/*
+ * USB directions
+ *
+ * This bit flag is used in endpoint descriptors' bEndpointAddress field.
+ * It's also one of three fields in control requests bRequestType.
+ */
+#define USB_DIR_OUT			0		/* to device */
+#define USB_DIR_IN			0x80		/* to host */
+
+/*
+ * Endpoints
+ */
+#define USB_ENDPOINT_NUMBER_MASK	0x0f	/* in bEndpointAddress */
+#define USB_ENDPOINT_DIR_MASK		0x80
+
+#define USB_ENDPOINT_XFERTYPE_MASK	0x03	/* in bmAttributes */
+#define USB_ENDPOINT_XFER_CONTROL	0
+#define USB_ENDPOINT_XFER_ISOC		1
+#define USB_ENDPOINT_XFER_BULK		2
+#define USB_ENDPOINT_XFER_INT		3
+#define USB_ENDPOINT_MAX_ADJUSTABLE	0x80
+
+
+/*----------------------------*/
+
+/**
+ * usb_endpoint_num - get the endpoint's number
+ * @epd: endpoint to be checked
+ *
+ * Returns @epd's number: 0 to 15.
+ */
+static __inline__ int usb_endpoint_num(const struct usb_endpoint_desc *epd){
+	return epd->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
+}
+
+/**
+ * usb_endpoint_type - get the endpoint's transfer type
+ * @epd: endpoint to be checked
+ *
+ * Returns one of USB_ENDPOINT_XFER_{CONTROL, ISOC, BULK, INT} according
+ * to @epd's transfer type.
+ */
+static __inline__ int usb_endpoint_type(const struct usb_endpoint_desc *epd){
+	return epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK;
+}
+
+/**
+ * usb_endpoint_dir_in - check if the endpoint has IN direction
+ * @epd: endpoint to be checked
+ *
+ * Returns true if the endpoint is of type IN, otherwise it returns false.
+ */
+static __inline__ int usb_endpoint_dir_in(const struct usb_endpoint_desc *epd){
+	return ((epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
+}
+
+/**
+ * usb_endpoint_dir_out - check if the endpoint has OUT direction
+ * @epd: endpoint to be checked
+ *
+ * Returns true if the endpoint is of type OUT, otherwise it returns false.
+ */
+static __inline__ int usb_endpoint_dir_out(
+				const struct usb_endpoint_desc *epd){
+	return ((epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_OUT);
+}
+
+/**
+ * usb_endpoint_xfer_bulk - check if the endpoint has bulk transfer type
+ * @epd: endpoint to be checked
+ *
+ * Returns true if the endpoint is of type bulk, otherwise it returns false.
+ */
+static __inline__ int usb_endpoint_xfer_bulk(
+				const struct usb_endpoint_desc *epd){
+	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_BULK);
+}
+
+/**
+ * usb_endpoint_xfer_control - check if the endpoint has control transfer type
+ * @epd: endpoint to be checked
+ *
+ * Returns true if the endpoint is of type control, otherwise it returns false.
+ */
+static __inline__ int usb_endpoint_xfer_control(
+				const struct usb_endpoint_desc *epd){
+	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_CONTROL);
+}
+
+/**
+ * usb_endpoint_xfer_int - check if the endpoint has interrupt transfer type
+ * @epd: endpoint to be checked
+ *
+ * Returns true if the endpoint is of type interrupt, otherwise it returns
+ * false.
+ */
+static __inline__ int usb_endpoint_xfer_int(
+				const struct usb_endpoint_desc *epd){
+	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_INT);
+}
+
+/**
+ * usb_endpoint_xfer_isoc - check if the endpoint has isochronous transfer type
+ * @epd: endpoint to be checked
+ *
+ * Returns true if the endpoint is of type isochronous, otherwise it returns
+ * false.
+ */
+static __inline__ int usb_endpoint_xfer_isoc(
+				const struct usb_endpoint_desc *epd){
+	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_ISOC);
+}
 
 /* USBDEVFS_DISCONNECT_CLAIM flags & struct */
 

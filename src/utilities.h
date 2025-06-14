@@ -33,7 +33,5 @@ static inline int kref_put(struct kref *kref, void (*release)(struct kref *kref)
 static inline int kref_read(struct kref *kref) {
 	return atomic_load(&kref->refcount);
 }
-	
-
 
 #endif

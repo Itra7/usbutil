@@ -57,9 +57,9 @@ struct usb_endpoint_desc{
     __u8    bLength;                        
     __u8    bEndpointAddress;
     __u8    bmAttributes;                     
-    __u32   wMaxPacketSize;
     __u8    bInterval;    
     char*   type;
+    __u32   wMaxPacketSize;
 };
 
 enum usb_device_speed {
@@ -69,6 +69,17 @@ enum usb_device_speed {
 	USB_SPEED_WIRELESS,			/* wireless (usb 2.5) */
 	USB_SPEED_SUPER,			/* usb 3.0 */
 	USB_SPEED_SUPER_PLUS,			/* usb 3.1 */
+};
+
+enum usb_transfer_type {
+	/** Control transfer */
+	USB_TRANSFER_TYPE_CONTROL = 0,
+	/** Isochronous transfer */
+	USB_TRANSFER_TYPE_ISOCHRONOUS = 1,
+	/** Bulk transfer */
+	USB_TRANSFER_TYPE_BULK = 2,
+	/** Interrupt transfer */
+	USB_TRANSFER_TYPE_INTERRUPT = 3
 };
 
 
@@ -90,11 +101,20 @@ enum usb_device_state {
 	USB_STATE_SUSPENDED
 };
 
+struct usb_transfer{
+    struct usbdevfs_urb* usbdevfs_urb;
+    int status;
+    enum usb_transfer_type usb_transfer_type;
+    struct usb_endpoint_desc* usb_endpoint_desc;
+    
+};
 
 struct usb_device{
     enum usb_device_speed device_speed;
     enum usb_device_state device_state;
     __u32 capabilities;
+    struct usb_transfer* usb_transfer;
+
     int fd;
     char sysfs_path[256*2];    
     char busnum[4];
