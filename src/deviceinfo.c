@@ -8,7 +8,7 @@
 
 
 __u32 get_max_packet_size(const struct usb_configuration_desc* usb_configuration_desc, 
-                            const __u8 num_of_endpoint){
+                            const __u32 num_of_endpoint){
     for(int i = 0; i < usb_configuration_desc->bNumInterfaces; i++){
         struct usb_interface_desc* usb_interface_desc = usb_configuration_desc->usb_interface_desc[i];
         for(int j = 0; j < usb_interface_desc->bNumEndpoints; j++){
@@ -36,7 +36,7 @@ struct usb_interface_desc* get_interface_class(const struct usb_configuration_de
 }
 
 struct usb_endpoint_desc* get_endpoint_class(const struct usb_configuration_desc* usb_configuration_desc, 
-                                                const __u8 num_of_endpoint){
+                                                const __u32 num_of_endpoint){
     for(int i = 0; i < usb_configuration_desc->bNumInterfaces; i++){
         struct usb_interface_desc* usb_interface_desc = usb_configuration_desc->usb_interface_desc[i];
         for(int j = 0; j < usb_interface_desc->bNumEndpoints; j++){

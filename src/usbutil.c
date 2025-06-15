@@ -172,7 +172,6 @@ struct usb_device* find_proper_device(const char* idProduct, const char* idVendo
     struct list_head *senitel = &devs->list;
     list_for_each(_list, senitel){
         devs = extract_from_list(_list, struct usb_device, list);
-        printf("devs->idP=%s, devs->idV=%s\n", devs->idProduct, devs->idVendor);
         if(strcmp(idProduct, devs->idProduct) == 0 && strcmp(idVendor, devs->idVendor) == 0){
             return devs;
         }
@@ -290,7 +289,6 @@ int read_and_set_field(void *struct_ptr, const char *filepath, field_type type, 
             __u8 val = 0;
             fscanf(fp, "%hhu", &val);
             *(__u8 *)field_addr = val;
-            printf("Read U8: %hhu\n", *(__u8*)field_addr);
             break;
         }
         case TYPE_U32: {
@@ -298,6 +296,7 @@ int read_and_set_field(void *struct_ptr, const char *filepath, field_type type, 
             /* using hexadecimal because only the wMaxPacketSize is type of __u32 */
             fscanf(fp, "%x", &val);
             *(__u32 *)field_addr = val;
+            printf("read from file idk what will store\n");
             printf("Read U32: %u\n", *(__u32*)field_addr);
             break;
         }
@@ -575,7 +574,7 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
         urb->type = usbdevfs_urb->type;
         urb->endpoint = usbdevfs_urb->endpoint;
         urb->flags = 0;
-
+        printf("is in = %d\n", is_in);
         if(is_in && i < number_of_urbs-1){
             urb->flags = USBUTIL_USBDEVFS_URB_SHORT_NOT_OK;
         }
@@ -585,6 +584,7 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
         }
 
         urb->buffer = usbdevfs_urb->buffer + (i * MIN(maxPacketSize, usbdevfs_urb->buffer_length));
+        printf("buffer= %s\n", (char*)urb->buffer);
         /* last one*/
         if(i == number_of_urbs-1){
             *sent += maxPacketSize % usbdevfs_urb->buffer_length;
@@ -645,6 +645,7 @@ int set_urb(struct usb_device* usb_device, unsigned char type,
     usbdevfs_urb->type = type;
     usbdevfs_urb->endpoint = endpoint;
     usbdevfs_urb->buffer_length = length;
+    usbdevfs_urb->buffer = buffer;
     usbdevfs_urb->flags = 0;
 
     struct usb_endpoint_desc* usb_endpoint_desc = get_endpoint_class(usb_device->dev->usb_configuration_desc[0], 

@@ -55,7 +55,7 @@ struct usb_interface_desc{
 
 struct usb_endpoint_desc{
     __u8    bLength;                        
-    __u8    bEndpointAddress;
+    __u32    bEndpointAddress;
     __u8    bmAttributes;                     
     __u8    bInterval;    
     char*   type;

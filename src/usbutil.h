@@ -56,7 +56,7 @@ static const field_info _usb_interface_desc[] = {
 static const field_info _usb_endpoint_desc[] = {
     {"bLength", offsetof(struct usb_endpoint_desc, bLength), TYPE_U8},
     {"type", offsetof(struct usb_endpoint_desc, type), TYPE_STRING},
-    {"bEndpointAddress", offsetof(struct usb_endpoint_desc, bEndpointAddress), TYPE_U8},
+    {"bEndpointAddress", offsetof(struct usb_endpoint_desc, bEndpointAddress), TYPE_U32},
     {"bmAttributes", offsetof(struct usb_endpoint_desc, bmAttributes), TYPE_U8},
     {"wMaxPacketSize", offsetof(struct usb_endpoint_desc, wMaxPacketSize), TYPE_U32},
     {"bInterval", offsetof(struct usb_endpoint_desc, bInterval), TYPE_U8},

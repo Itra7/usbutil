@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <time.h>
+#include <string.h>
 
 
 #include "usbconf.h"
@@ -49,15 +50,12 @@ int main(){
 
     device_struct->dev = read_usb_device(device_struct->sysfs_path, &device_struct->endpoint0);
 
-    print_usb_list(devices);
     
     char* buffer = calloc(0x40, sizeof(char));
 
-    struct stat s;
-    fstat(device_struct->fd, &s);
-    printf("major=%d minor=%d\n", major(s.st_rdev), minor(s.st_rdev));
+    strcpy(buffer, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
-    if(set_urb(device_struct, USBUTIL_USBDEVFS_URB_TYPE_INTERRUPT, 1, buffer, 0x40) != 0){
+    if(set_urb(device_struct, USBUTIL_USBDEVFS_URB_TYPE_BULK, 0x01, buffer, 0x40) != 0){
         printf("neki error u set_urb");
         free_usb_info(&device_struct->dev, device_struct->endpoint0);
 
