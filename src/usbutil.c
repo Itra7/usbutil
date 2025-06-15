@@ -9,6 +9,12 @@
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
 #include <assert.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
+#include <time.h>
+
+
 
 #include "usbconf.h"
 #include "utilities.h"
@@ -16,6 +22,7 @@
 #include "usbutilerrno.h"
 #include "usbutilList.h"
 #include "usbio.h"
+#include "deviceinfo.h"
 
 
 #define EXTRACT_IDPRODUCT (1<<2)
@@ -160,11 +167,12 @@ int usbutil_extract_from_file(char *paths, char *d_name, struct usb_device** usb
     return 0;
 }
 
-static struct usb_device* find_proper_device(const char* idProduct, const char* idVendor, struct usb_device *devs){
+struct usb_device* find_proper_device(const char* idProduct, const char* idVendor, struct usb_device *devs){
     struct list_head *_list;
     struct list_head *senitel = &devs->list;
     list_for_each(_list, senitel){
         devs = extract_from_list(_list, struct usb_device, list);
+        printf("devs->idP=%s, devs->idV=%s\n", devs->idProduct, devs->idVendor);
         if(strcmp(idProduct, devs->idProduct) == 0 && strcmp(idVendor, devs->idVendor) == 0){
             return devs;
         }
@@ -193,12 +201,18 @@ int usbutil_open(const char* idProduct, const char* idVendor, struct usb_device 
     }
     char path[256];
     snprintf(path, sizeof(path), STRINGIFY(DEVICEIO_PATH) "/%s/%s", BBB, DDD);
+    printf("PATH = %s\n", path);
+
     int fd = open(path, O_RDWR); // open only in sudo
     if(fd == -1){
         return USBUTIL_EOPEN; // check for open fail messanges
     }
+    
+    struct stat s;
+    fstat(fd, &s);
+    printf("major=%d minor=%d\n", major(s.st_rdev), minor(s.st_rdev));
 
-    close(fd);
+    find->fd = fd;
     return 0;
 }
 
@@ -281,7 +295,8 @@ int read_and_set_field(void *struct_ptr, const char *filepath, field_type type, 
         }
         case TYPE_U32: {
             __u32 val = 0;
-            fscanf(fp, "%u", &val);
+            /* using hexadecimal because only the wMaxPacketSize is type of __u32 */
+            fscanf(fp, "%x", &val);
             *(__u32 *)field_addr = val;
             printf("Read U32: %u\n", *(__u32*)field_addr);
             break;
@@ -513,14 +528,169 @@ void free_usb_list(struct usb_device *devs){
     }
 }
 
-
-
 /* IOCTL commands */
 
+/* make it for isochrnous */
+void discard_urb(struct usbdevfs_urb* urbs, int first, int last, int fd){
+    for(int i = last-1; i >= first; i--){
+        if(ioctl(fd, USBUTIL_USBDEVFS_DISCARDURB, &urbs[i]) != 0){
+            if(errno == ENODEV){
+                usbutil_dbg(USBUTIL_NOT_FOUND, " Device not found %s %d", __FILE__, __LINE__);
+            }else if(errno == EINVAL){
+                usbutil_dbg(USBUTIL_NOT_FOUND, " URB not found %s %d", __FILE__, __LINE__);
+            }
+        }
+    }
+}
 
 
+int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
+    struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
+    struct usb_endpoint_desc* endpoint = usb_device->usb_transfer->usb_endpoint_desc;
+    struct usbdevfs_urb* urbs;
+    int fd = usb_device->fd;
 
-void get_device_speed(struct usb_device* usb_device){
+    int is_in = usb_endpoint_dir_in(endpoint);
+    
+    int maxPacketSize = endpoint->wMaxPacketSize;
+    int number_of_urbs;
+
+    if(usbdevfs_urb->buffer_length > maxPacketSize){
+        number_of_urbs = maxPacketSize / usbdevfs_urb->buffer_length;
+        if(usbdevfs_urb->buffer_length % maxPacketSize > 0){
+            number_of_urbs++;
+        }
+    }else{
+        number_of_urbs = 1;
+    }
+    urbs = calloc(number_of_urbs, sizeof(struct usbdevfs_urb));
+    if(urbs == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, " Failed to allocate urbs %s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+
+    for(int i = 0; i < number_of_urbs; i++){
+        struct usbdevfs_urb* urb = &urbs[i];
+
+        urb->type = usbdevfs_urb->type;
+        urb->endpoint = usbdevfs_urb->endpoint;
+        urb->flags = 0;
+
+        if(is_in && i < number_of_urbs-1){
+            urb->flags = USBUTIL_USBDEVFS_URB_SHORT_NOT_OK;
+        }
+
+        if(i > 0){
+            urb->flags |= USBUTIL_USBDEVFS_URB_BULK_CONTINUATION;
+        }
+
+        urb->buffer = usbdevfs_urb->buffer + (i * MIN(maxPacketSize, usbdevfs_urb->buffer_length));
+        /* last one*/
+        if(i == number_of_urbs-1){
+            *sent += maxPacketSize % usbdevfs_urb->buffer_length;
+            urb->buffer_length = maxPacketSize % usbdevfs_urb->buffer_length == 0 ? MIN(maxPacketSize, usbdevfs_urb->buffer_length) : maxPacketSize % usbdevfs_urb->buffer_length;
+        }else{
+            urb->buffer_length = MIN(maxPacketSize, usbdevfs_urb->buffer_length);
+            *sent += MIN(maxPacketSize, usbdevfs_urb->buffer_length);
+        }
+
+        printf("=== %d\n", MIN(maxPacketSize, usbdevfs_urb->buffer_length));
+        printf("type = %d, endpoint = %d, flags = %d, lenght = %d", 
+            urb->type, urb->endpoint, urb->flags, urb->buffer_length);
+        
+
+        if(ioctl(fd, USBUTIL_USBDEVFS_SUBMITURB, urb) == 0){
+            continue;
+        }
+
+        if(i == 0){
+            usbutil_dbg(USBUTIL_OTHER, " Failed sending first urb %s %d errno=%d", __FILE__, __LINE__, errno);
+            free(urb);
+            return USBUTIL_OTHER;
+        }
+
+        if(errno == ENODEV){
+            usbutil_dbg(USBUTIL_NOT_FOUND, " Device not found %s %d", __FILE__, __LINE__);
+            return USBUTIL_NOT_FOUND;
+        }else{
+            usbutil_dbg(USBUTIL_OTHER, " Unknown error %s %d", __FILE__, __LINE__);
+            return USBUTIL_OTHER;
+        }
+
+        /* transfer ended early because the device sent less data (e.g. a short packet). */
+        if(errno == EREMOTEIO){
+            return 0;
+        }
+
+        discard_urb(urbs, 0, i, fd);
+    }
+    /* SUBMITURB and DISCARDURB will automatically free other pointers */
+
+
+}
+
+
+int set_urb(struct usb_device* usb_device, unsigned char type, 
+                                unsigned char endpoint, void* buffer, int length){
+    struct usbdevfs_urb* usbdevfs_urb = malloc(sizeof(struct usbdevfs_urb));
+    if(usbdevfs_urb == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, "Failed to allocate urb %s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+    usb_device->usb_transfer = malloc(sizeof(struct usb_transfer));
+    if(usb_device->usb_transfer == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, "Failed to allocate usb_transfer %s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+    usbdevfs_urb->type = type;
+    usbdevfs_urb->endpoint = endpoint;
+    usbdevfs_urb->buffer_length = length;
+    usbdevfs_urb->flags = 0;
+
+    struct usb_endpoint_desc* usb_endpoint_desc = get_endpoint_class(usb_device->dev->usb_configuration_desc[0], 
+                                                                        endpoint);
+    
+    if(usb_endpoint_desc == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, "Failed to allocate urb %s %d", __FILE__, __LINE__);
+        free(usb_endpoint_desc);
+        free(usbdevfs_urb);
+        return USBUTIL_MALLOC_FAIL;
+    }
+
+    usb_device->usb_transfer->usb_endpoint_desc = usb_endpoint_desc;
+    usb_device->usb_transfer->status = 0;
+    usb_device->usb_transfer->usbdevfs_urb = usbdevfs_urb;
+    return 0;
+}
+
+/* check return type */
+int process_urb(struct usb_device* usb_device){
+    struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
+    int sent = 0;
+    switch(usbdevfs_urb->type){
+        case USBUTIL_USBDEVFS_URB_TYPE_ISO:{
+            
+            break;
+        }
+        case USBUTIL_USBDEVFS_URB_TYPE_INTERRUPT:{
+            send_bulk_endpoint(usb_device, &sent);
+            break;
+        }
+        case USBUTIL_USBDEVFS_URB_TYPE_CONTROL:{
+
+            break;
+        }
+        case USBUTIL_USBDEVFS_URB_TYPE_BULK:{
+            send_bulk_endpoint(usb_device, &sent);
+            break;
+        }
+    }
+    return sent;
+
+}
+
+
+void usbutil_get_device_speed(struct usb_device* usb_device){
     int fd = usb_device->fd;
     __u8 speed = ioctl(fd, USBUTIL_USBDEVFS_GET_SPEED);
     usb_device->device_speed = speed;
@@ -591,5 +761,144 @@ int reap_urb(struct usb_device* usb_device, struct usbdevfs_urb *reap){
     return 0;
 }
 
+int _claim_interface(struct usb_device* usb_device, int interface){
+    int fd = usb_device->fd;
+    if(ioctl(fd, USBUTIL_USBDEVFS_CLAIMINTERFACE, interface) < 0){
+        if (errno == ENOENT){
+            usbutil_dbg(USBUTIL_NOT_FOUND, "interface not founded %s %d", __FILE__, __LINE__);
+			return USBUTIL_NOT_FOUND;
+        }
+		usbutil_dbg(USBUTIL_OTHER, "failed claiming interface %s %d" __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    return 0;
+}
+
+int detach_kernel_driver(struct usb_device* usb_device, int interface){
+    int fd = usb_device->fd;
+    struct usbdevfs_ioctl ioctl_pass;
+
+    ioctl_pass.ifno = interface;
+    ioctl_pass.ioctl_code = USBUTIL_USBDEVFS_DISCONNECT;
+    ioctl_pass.data = NULL;
+
+    struct usbdevfs_getdriver driver;
+    driver.interface = interface;
+    int ret = ioctl(fd, USBUTIL_USBDEVFS_GETDRIVER, &driver);
+    if(ret == 0 && strcmp(driver.driver, "usbfs") == 0){
+        /* driver is not found if it isn't connected to virtual bus */
+        usbutil_dbg(USBUTIL_NOT_FOUND, "driver not found %s %d", __FILE__, __LINE__);
+        return USBUTIL_NOT_FOUND;
+    }
+
+    ret = ioctl(fd, USBUTIL_USBDEVFS_DISCONNECT, &interface);
+    if(ret < 0){
+        if(errno == ENODATA){
+            usbutil_dbg(USBUTIL_NOT_FOUND, " Not found %s %d", __FILE__, __LINE__);
+            return USBUTIL_NOT_FOUND;
+        }else if(errno == EINVAL){
+            usbutil_dbg(USBUTIL_OTHER, " Invalid parameters %s %d", __FILE__, __LINE__);
+            return USBUTIL_OTHER;
+        }
+        usbutil_dbg(USBUTIL_OTHER, "detach failed unknown error %s %d errno=%d", __FILE__, __LINE__, errno);
+        return USBUTIL_OTHER;
+    }
+    usb_device->attached_kernel_driver = 1;
+    return 0;
+}
+
+
+int attach_kernel_driver(struct usb_device* usb_device, int interface){
+    struct usbdevfs_ioctl ioctl_pass;
+    int fd = usb_device->fd;
+
+    ioctl_pass.ifno = interface;
+    ioctl_pass.ioctl_code = USBUTIL_USBDEVFS_CONNECT;
+    ioctl_pass.data = NULL;
+
+    int ret = ioctl(fd, USBUTIL_USBDEVFS_IOCTL, &ioctl_pass);
+    if(ret == 0){
+        usbutil_dbg(USBUTIL_NOT_FOUND, " Not found %s %d", __FILE__, __LINE__);
+        return USBUTIL_NOT_FOUND;
+    }else if(ret < 0){
+        if(errno == ENODATA){
+            usbutil_dbg(USBUTIL_NOT_FOUND, " Not found %s %d", __FILE__, __LINE__);
+            return USBUTIL_NOT_FOUND;    
+        }else if(errno == ENODEV){
+            usbutil_dbg(USBUTIL_NOT_FOUND, " Not found driver %s %d", __FILE__, __LINE__);
+            return USBUTIL_NOT_FOUND;    
+        }else if(errno == EBUSY){
+            usbutil_dbg(USBUTIL_NOT_FOUND, " device busy %s %d", __FILE__, __LINE__);
+            return USBUTIL_NOT_FOUND;    
+        }else{
+            usbutil_dbg(USBUTIL_NOT_FOUND, " device busy %s %d", __FILE__, __LINE__);
+            return USBUTIL_NOT_FOUND;
+        }
+    }
+    
+    usb_device->attached_kernel_driver = 0;
+    return 0;
+}
+
+int detach_kernel_driver_and_claim(struct usb_device* usb_device, int interface){
+    int fd = usb_device->fd;
+    struct usbdevfs_disconnect_claim udc;
+    
+    udc.flags = USBUTIL_USBDEVFS_DISCONNECT_CLAIM_EXCEPT_DRIVER;
+    udc.interface = interface;
+    strcpy(udc.driver, "usbfs");
+
+    if(ioctl(fd, USBUTIL_USBDEVFS_DISCONNECT_CLAIM, &udc) == 0){
+        usb_device->attached_kernel_driver = 1;
+        return 0;
+    }
+    if(errno == ENOTTY){
+        int ret = detach_kernel_driver(usb_device, interface);
+        if(ret != 0){
+            return ret;
+        }
+        return _claim_interface(usb_device, interface);
+    }else{
+        usbutil_dbg(USBUTIL_OTHER, " failed to detach and claim interface errno = %d %s %d", errno, __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    
+}
+
+
+int claim_interface(struct usb_device* usb_device, int interface){
+    if(interface < 0){
+        usbutil_dbg(USBUTIL_OTHER, " Negative interface %s %d", __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    if(!usb_device->attached_kernel_driver){
+        return detach_kernel_driver_and_claim(usb_device, interface);
+    }
+    return _claim_interface(usb_device, interface);
+}
+
+int release_interface(struct usb_device* usb_device, int interface){
+    if(interface < 0){
+        usbutil_dbg(USBUTIL_OTHER, " Negative interface %s %d", __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    int fd = usb_device->fd;
+
+    if(ioctl(fd, USBUTIL_USBDEVFS_RELEASEINTERFACE, &interface) < 0){
+        if (errno == ENODEV){
+            usbutil_dbg(USBUTIL_NOT_FOUND, "interface not found %s %d", __FILE__, __LINE__);
+			return USBUTIL_NOT_FOUND;
+        }
+        usbutil_dbg(USBUTIL_OTHER, " Error while releasing interface %s %d", __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    if(!usb_device->attached_kernel_driver){
+        int ret = attach_kernel_driver(usb_device, interface);
+        if(ret != 0){
+            return ret;
+        }
+    }
+    return 0;
+}
 
 

@@ -68,12 +68,20 @@ void print_usb_list(struct usb_device *devs);
 
 struct usb_desc* read_usb_device(const char* path, struct usb_endpoint_desc**);
 int sysfs_fd_open(const char* device, const char* file_name, const int flags);
-int usbutil_extract_from_file(char *, char*, struct usb_device**, int);
 int usbutil_list_devices(struct usb_device**);
-
+int usbutil_extract_from_file(char *paths, char *d_name, struct usb_device** usb_device, int flag);
 int usbutil_init();
 
 int usbutil_open(const char* idProduct, const char* idVendor, struct usb_device* devs);
+struct usb_device* find_proper_device(const char* idProduct, const char* idVendor, struct usb_device *devs);
+
+void usbutil_get_device_speed(struct usb_device* usb_device);
+
+int set_urb(struct usb_device* usb_device, unsigned char type, 
+    unsigned char endpoint, void* buffer, int length);
+int process_urb(struct usb_device* usb_device);
+int claim_interface(struct usb_device* usb_device, int interface);
+int release_interface(struct usb_device* usb_device, int interface);
 
 
 #endif

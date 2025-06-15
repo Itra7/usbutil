@@ -125,6 +125,8 @@ struct usb_device{
     struct usb_endpoint_desc* endpoint0;
     struct list_head list;
     struct kref kref; 
+    __u8 attached_kernel_driver;
+
 };
 
 
