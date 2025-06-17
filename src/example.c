@@ -51,11 +51,12 @@ int main(){
     device_struct->dev = read_usb_device(device_struct->sysfs_path, &device_struct->endpoint0);
 
     
-    char* buffer = calloc(0x40, sizeof(char));
+    char* buffer = calloc(0x10, sizeof(char));
 
-    strcpy(buffer, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    strcpy(buffer, "AAAA");
 
-    if(set_urb(device_struct, USBUTIL_USBDEVFS_URB_TYPE_BULK, 0x01, buffer, 0x40) != 0){
+
+    if(set_urb(device_struct, USBUTIL_USBDEVFS_URB_TYPE_BULK, 0x01, buffer, 0x10) != 0){
         printf("neki error u set_urb");
         free_usb_info(&device_struct->dev, device_struct->endpoint0);
 

@@ -207,10 +207,6 @@ int usbutil_open(const char* idProduct, const char* idVendor, struct usb_device 
         return USBUTIL_EOPEN; // check for open fail messanges
     }
     
-    struct stat s;
-    fstat(fd, &s);
-    printf("major=%d minor=%d\n", major(s.st_rdev), minor(s.st_rdev));
-
     find->fd = fd;
     return 0;
 }
@@ -296,8 +292,6 @@ int read_and_set_field(void *struct_ptr, const char *filepath, field_type type, 
             /* using hexadecimal because only the wMaxPacketSize is type of __u32 */
             fscanf(fp, "%x", &val);
             *(__u32 *)field_addr = val;
-            printf("read from file idk what will store\n");
-            printf("Read U32: %u\n", *(__u32*)field_addr);
             break;
         }
         case TYPE_STRING: {
@@ -309,7 +303,6 @@ int read_and_set_field(void *struct_ptr, const char *filepath, field_type type, 
             if (fgets(buf, 128, fp)) {
                 buf[strcspn(buf, "\n")] = '\0';
                 *(char **)field_addr = buf;
-                printf("Read STRING: %s\n", *(char**)field_addr);
             } else {
                 free(buf);
             }
@@ -542,6 +535,39 @@ void discard_urb(struct usbdevfs_urb* urbs, int first, int last, int fd){
     }
 }
 
+int send_control_endpoint(struct usb_device* usb_device, int* sent){
+    struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
+    struct usb_endpoint_desc* endpoint = usb_device->usb_transfer->usb_endpoint_desc;
+    struct usbdevfs_urb* urbs;
+    int fd = usb_device->fd;
+
+    urbs = calloc(1, sizeof(struct usbdevfs_urb));
+    if(urbs == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, " Failed to allocate contorl urb %s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+
+    int maxPacketSize = endpoint->wMaxPacketSize;
+
+    if(usbdevfs_urb->buffer_length > maxPacketSize){
+        usbutil_dbg(USBUTIL_OTHER, " Buffer too long %s %d", __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+
+    urbs->type = usbdevfs_urb->type;
+    urbs->endpoint = usbdevfs_urb->endpoint;
+    urbs->buffer = usbdevfs_urb->buffer;
+    urbs->buffer_length = usbdevfs_urb->buffer_length;
+
+    if(ioctl(fd, USBUTIL_USBDEVFS_SUBMITURB, urbs) < 0){
+        free(urbs);
+        usbutil_dbg(USBUTIL_OTHER, " failed with errno=%d %s %d", errno, __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    *sent += urbs->buffer_length;
+    return 0;
+
+}
 
 int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
     struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
@@ -555,7 +581,8 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
     int number_of_urbs;
 
     if(usbdevfs_urb->buffer_length > maxPacketSize){
-        number_of_urbs = maxPacketSize / usbdevfs_urb->buffer_length;
+        number_of_urbs = usbdevfs_urb->buffer_length / maxPacketSize;
+
         if(usbdevfs_urb->buffer_length % maxPacketSize > 0){
             number_of_urbs++;
         }
@@ -570,11 +597,12 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
 
     for(int i = 0; i < number_of_urbs; i++){
         struct usbdevfs_urb* urb = &urbs[i];
+        printf("num_of_urbs = %d, datasent = %d\n", number_of_urbs, *sent);
 
         urb->type = usbdevfs_urb->type;
         urb->endpoint = usbdevfs_urb->endpoint;
         urb->flags = 0;
-        printf("is in = %d\n", is_in);
+
         if(is_in && i < number_of_urbs-1){
             urb->flags = USBUTIL_USBDEVFS_URB_SHORT_NOT_OK;
         }
@@ -584,20 +612,17 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
         }
 
         urb->buffer = usbdevfs_urb->buffer + (i * MIN(maxPacketSize, usbdevfs_urb->buffer_length));
-        printf("buffer= %s\n", (char*)urb->buffer);
+
         /* last one*/
         if(i == number_of_urbs-1){
-            *sent += maxPacketSize % usbdevfs_urb->buffer_length;
-            urb->buffer_length = maxPacketSize % usbdevfs_urb->buffer_length == 0 ? MIN(maxPacketSize, usbdevfs_urb->buffer_length) : maxPacketSize % usbdevfs_urb->buffer_length;
+            printf("AFTERnum_of_urbs = %d, datasent = %d\n", number_of_urbs, *sent);
+
+            *sent += usbdevfs_urb->buffer_length % maxPacketSize == 0 ? MIN(maxPacketSize, usbdevfs_urb->buffer_length) : usbdevfs_urb->buffer_length % maxPacketSize;
+            urb->buffer_length = usbdevfs_urb->buffer_length % maxPacketSize == 0 ? MIN(maxPacketSize, usbdevfs_urb->buffer_length) : usbdevfs_urb->buffer_length % maxPacketSize;
         }else{
             urb->buffer_length = MIN(maxPacketSize, usbdevfs_urb->buffer_length);
             *sent += MIN(maxPacketSize, usbdevfs_urb->buffer_length);
         }
-
-        printf("=== %d\n", MIN(maxPacketSize, usbdevfs_urb->buffer_length));
-        printf("type = %d, endpoint = %d, flags = %d, lenght = %d", 
-            urb->type, urb->endpoint, urb->flags, urb->buffer_length);
-        
 
         if(ioctl(fd, USBUTIL_USBDEVFS_SUBMITURB, urb) == 0){
             continue;
@@ -608,6 +633,7 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
             free(urb);
             return USBUTIL_OTHER;
         }
+
 
         if(errno == ENODEV){
             usbutil_dbg(USBUTIL_NOT_FOUND, " Device not found %s %d", __FILE__, __LINE__);
@@ -625,7 +651,7 @@ int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
         discard_urb(urbs, 0, i, fd);
     }
     /* SUBMITURB and DISCARDURB will automatically free other pointers */
-
+    return 0;
 
 }
 
@@ -647,6 +673,13 @@ int set_urb(struct usb_device* usb_device, unsigned char type,
     usbdevfs_urb->buffer_length = length;
     usbdevfs_urb->buffer = buffer;
     usbdevfs_urb->flags = 0;
+
+    if(type == USBUTIL_USBDEVFS_URB_TYPE_CONTROL){
+        usb_device->usb_transfer->usb_endpoint_desc = usb_device->endpoint0;
+        usb_device->usb_transfer->status = 0;
+        usb_device->usb_transfer->usbdevfs_urb = usbdevfs_urb;
+        return 0;    
+    }
 
     struct usb_endpoint_desc* usb_endpoint_desc = get_endpoint_class(usb_device->dev->usb_configuration_desc[0], 
                                                                         endpoint);
@@ -901,5 +934,7 @@ int release_interface(struct usb_device* usb_device, int interface){
     }
     return 0;
 }
+
+
 
 
