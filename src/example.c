@@ -57,19 +57,11 @@ int main(){
 
 
     if(set_urb(device_struct, USBUTIL_USBDEVFS_URB_TYPE_BULK, 0x01, buffer, 0x10) != 0){
-        printf("neki error u set_urb");
-        free_usb_info(&device_struct->dev, device_struct->endpoint0);
-
-        free_usb_list(devices);
-    
+        usbutil_close(devices, device_struct);
         return 0;
     }
     if(claim_interface(device_struct, 0) != 0){
-        free_usb_info(&device_struct->dev, device_struct->endpoint0);
-
-        free_usb_list(devices);
-    
-        printf("interject");
+        usbutil_close(devices, device_struct);
         return 0;
     }
 
@@ -80,11 +72,7 @@ int main(){
     printf("datasent = %d\n", datasent);
     free(buffer);
 
-    free_usb_info(&device_struct->dev, device_struct->endpoint0);
-
-    free_usb_list(devices);
-
-    
+    usbutil_close(devices, device_struct);
 
     return 0;
 }

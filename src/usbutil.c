@@ -15,7 +15,6 @@
 #include <time.h>
 
 
-
 #include "usbconf.h"
 #include "utilities.h"
 #include "usbutil.h"
@@ -25,18 +24,16 @@
 #include "deviceinfo.h"
 
 
-#define EXTRACT_IDPRODUCT (1<<2)
-#define EXTRACT_IDVENDOR  (1<<3)
-#define EXTRACT_DEVNUM    (1<<4)
-#define EXTRACT_BUSNUM    (1<<5)
+#define EXTRACT_IDPRODUCT (1U << 2)
+#define EXTRACT_IDVENDOR  (1U << 3)
+#define EXTRACT_DEVNUM    (1U << 4)
+#define EXTRACT_BUSNUM    (1u << 5)
 #define ATR(x) #x
 #define STRINGIFY(x) ATR(x)
 #define GET_SIZE_OF(x) (sizeof(x)/sizeof(x[0]))
 
 #define MAX_DEVICES 32
 #define MAX_PATH 256*2
-
-static int _sysfs_fd_open(const char* path, const int flags);
 
 int usbutil_init(){
     struct utsname kernel_version;
@@ -50,6 +47,15 @@ int usbutil_init(){
     return 0;
 }
 
+void usbutil_close(struct usb_device* head, struct usb_device* target_device){
+    if(target_device != NULL){
+        free_usb_info(&target_device->dev, target_device->endpoint0);
+    }
+    if(head != NULL){
+        free_usb_list(head);
+    }
+
+}
 // TODO: add functionality for printing manufactured
 
 int usbutil_list_devices(struct usb_device **ptr){
@@ -139,34 +145,6 @@ int usbutil_list_devices(struct usb_device **ptr){
     return 0;
 }
 
-int usbutil_extract_from_file(char *paths, char *d_name, struct usb_device** usb_device, int flag){
-    char filepath[MAX_PATH];
-    snprintf(filepath, MAX_PATH, "%s/%s", paths, d_name);
-    int fd = open(filepath, O_RDONLY);
-    if(fd == -1){
-        return USBUTIL_EOPEN;
-    }
-    char buf[32];
-    int cnt = read(fd, buf, sizeof(buf)-1);
-    buf[cnt] = '\0';
-    cnt--;
-    if(flag == EXTRACT_IDPRODUCT){
-        strncpy((*usb_device)->idProduct, buf, sizeof((*usb_device)->idProduct));
-        (*usb_device)->idProduct[cnt] = '\0';
-    }else if(flag == EXTRACT_IDVENDOR){
-        strncpy((*usb_device)->idVendor, buf, sizeof((*usb_device)->idVendor));
-        (*usb_device)->idVendor[cnt] = '\0';
-    }else if(flag == EXTRACT_DEVNUM){
-        strncpy((*usb_device)->devnum, buf, sizeof((*usb_device)->devnum));
-        (*usb_device)->devnum[cnt] = '\0';
-    }else if(flag == EXTRACT_BUSNUM){
-        strncpy((*usb_device)->busnum, buf, sizeof((*usb_device)->busnum));
-        (*usb_device)->busnum[cnt] = '\0';
-    }
-    close(fd);
-    return 0;
-}
-
 struct usb_device* find_proper_device(const char* idProduct, const char* idVendor, struct usb_device *devs){
     struct list_head *_list;
     struct list_head *senitel = &devs->list;
@@ -200,7 +178,6 @@ int usbutil_open(const char* idProduct, const char* idVendor, struct usb_device 
     }
     char path[256];
     snprintf(path, sizeof(path), STRINGIFY(DEVICEIO_PATH) "/%s/%s", BBB, DDD);
-    printf("PATH = %s\n", path);
 
     int fd = open(path, O_RDWR); // open only in sudo
     if(fd == -1){
@@ -221,28 +198,6 @@ int sysfs_fd_open(const char* device, const char* file_name, const int flags){
     char path[256];
     snprintf(path, sizeof(path), "%s/%s/%s", STRINGIFY(SYSPATH), device, file_name);
 
-    int fd = open(path, flags);
-    if(fd == -1){
-        switch(errno){
-            case EACCES:
-                usbutil_dbg(USBUTIL_EOPEN, " Access error %s %d", __FILE__, __LINE__);
-                break;
-            case EISDIR:
-                usbutil_dbg(USBUTIL_EOPEN, " File is directory %s %d", __FILE__, __LINE__);
-                break;
-            case ENOENT:
-                usbutil_dbg(USBUTIL_EOPEN, " File doesn't exist %s %d", __FILE__, __LINE__);
-                break;
-            default:
-                usbutil_dbg(USBUTIL_EOPEN, "Unkown open file error %s %d", __FILE__, __LINE__);
-                break;
-        }
-    }
-    return fd;
-}
-
-// Implement check if flags are set
-static int _sysfs_fd_open(const char* path, const int flags){
     int fd = open(path, flags);
     if(fd == -1){
         switch(errno){
@@ -520,10 +475,39 @@ void free_usb_list(struct usb_device *devs){
     }
 }
 
+int usbutil_extract_from_file(char *paths, char *d_name, struct usb_device** usb_device, int flag){
+    char filepath[MAX_PATH];
+    snprintf(filepath, MAX_PATH, "%s/%s", paths, d_name);
+    int fd = open(filepath, O_RDONLY);
+    if(fd == -1){
+        return USBUTIL_EOPEN;
+    }
+    char buf[32];
+    int cnt = read(fd, buf, sizeof(buf)-1);
+    buf[cnt] = '\0';
+    cnt--;
+    if(flag == EXTRACT_IDPRODUCT){
+        strncpy((*usb_device)->idProduct, buf, sizeof((*usb_device)->idProduct));
+        (*usb_device)->idProduct[cnt] = '\0';
+    }else if(flag == EXTRACT_IDVENDOR){
+        strncpy((*usb_device)->idVendor, buf, sizeof((*usb_device)->idVendor));
+        (*usb_device)->idVendor[cnt] = '\0';
+    }else if(flag == EXTRACT_DEVNUM){
+        strncpy((*usb_device)->devnum, buf, sizeof((*usb_device)->devnum));
+        (*usb_device)->devnum[cnt] = '\0';
+    }else if(flag == EXTRACT_BUSNUM){
+        strncpy((*usb_device)->busnum, buf, sizeof((*usb_device)->busnum));
+        (*usb_device)->busnum[cnt] = '\0';
+    }
+    close(fd);
+    return 0;
+}
+
+
 /* IOCTL commands */
 
 /* make it for isochrnous */
-void discard_urb(struct usbdevfs_urb* urbs, int first, int last, int fd){
+static void discard_urb(struct usbdevfs_urb* urbs, int first, int last, int fd){
     for(int i = last-1; i >= first; i--){
         if(ioctl(fd, USBUTIL_USBDEVFS_DISCARDURB, &urbs[i]) != 0){
             if(errno == ENODEV){
@@ -535,7 +519,83 @@ void discard_urb(struct usbdevfs_urb* urbs, int first, int last, int fd){
     }
 }
 
-int send_control_endpoint(struct usb_device* usb_device, int* sent){
+int clear_halt(struct usb_device* usb_device, int endpoint){
+    int fd = usb_device->fd;
+    if(ioctl(fd, USBUTIL_USBDEVFS_CLEAR_HALT, &endpoint) < 0){
+        if(errno == ENODEV){
+            usbutil_dbg(USBUTIL_OTHER, " no device %s %d", __FILE__, __LINE__);
+            return USBUTIL_OTHER;
+        }
+        usbutil_dbg(USBUTIL_OTHER, " Unkwnow errno = %d %s %d", errno, __FILE__, __LINE__);
+        return USBUTIL_OTHER;
+    }
+    return 0;
+}
+
+static int send_iso_endpoint(struct usb_device* usb_device, int* sent){
+    struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
+    struct usb_endpoint_desc* endpoint = usb_device->usb_transfer->usb_endpoint_desc;
+    struct usbdevfs_urb* urbs;
+    int fd = usb_device->fd;
+
+    int maxPacketSize = endpoint->wMaxPacketSize;
+
+    int num_of_iso = usbdevfs_urb->buffer_length / maxPacketSize;
+    if(usbdevfs_urb->buffer_length % maxPacketSize > 0){
+        num_of_iso++;
+    }
+
+    struct usbdevfs_iso_packet_desc* iso = malloc(sizeof(struct usbdevfs_iso_packet_desc) * num_of_iso);
+    if(iso == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, " Iso packets allocation fail %s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+    
+    urbs = calloc(1, sizeof(struct usbdevfs_urb));
+    if(urbs == NULL){
+        usbutil_dbg(USBUTIL_MALLOC_FAIL, " URB allocation fail %s %d", __FILE__, __LINE__);
+        return USBUTIL_MALLOC_FAIL;
+    }
+
+    for(int i = 0; i < num_of_iso; i++){
+        if(num_of_iso == 1){
+            iso[i].length = usbdevfs_urb->buffer_length;
+        }else{
+            iso[i].length = maxPacketSize;
+        }
+        urbs->iso_frame_desc[i] = iso[i];
+    }
+ 
+
+    urbs->type = usbdevfs_urb->type;
+    urbs->endpoint = usbdevfs_urb->endpoint;
+    urbs->buffer = usbdevfs_urb->buffer;
+    urbs->buffer_length = num_of_iso == 1 ? MIN(maxPacketSize, usbdevfs_urb->buffer_length) : num_of_iso * maxPacketSize;
+    urbs->start_frame = 0;
+    urbs->number_of_packets = num_of_iso;
+    urbs->flags = 0;
+
+    int ret = ioctl(fd, USBUTIL_USBDEVFS_SUBMITURB, urbs);
+    if(ret < 0){
+        free(iso);
+
+        if(errno == ENODEV){
+            usbutil_dbg(USBUTIL_NOT_FOUND, " device not found %s %d", __FILE__, __LINE__);
+        }else if(errno == EINVAL){
+            usbutil_dbg(USBUTIL_IOCTL_FAIL, " parameters failed %s %d", __FILE__, __LINE__);
+        }else{
+            usbutil_dbg(USBUTIL_OTHER, " unknown error errno = %d %s %d", errno, __FILE__, __LINE__);
+        }
+        discard_urb(urbs, 0, 1, fd);
+        return USBUTIL_IOCTL_FAIL;
+    }
+
+    return 0;
+
+
+}
+
+static int send_control_endpoint(struct usb_device* usb_device, int* sent){
     struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
     struct usb_endpoint_desc* endpoint = usb_device->usb_transfer->usb_endpoint_desc;
     struct usbdevfs_urb* urbs;
@@ -569,7 +629,7 @@ int send_control_endpoint(struct usb_device* usb_device, int* sent){
 
 }
 
-int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
+static int send_bulk_endpoint(struct usb_device* usb_device, int* sent){
     struct usbdevfs_urb* usbdevfs_urb = usb_device->usb_transfer->usbdevfs_urb;
     struct usb_endpoint_desc* endpoint = usb_device->usb_transfer->usb_endpoint_desc;
     struct usbdevfs_urb* urbs;
@@ -703,7 +763,7 @@ int process_urb(struct usb_device* usb_device){
     int sent = 0;
     switch(usbdevfs_urb->type){
         case USBUTIL_USBDEVFS_URB_TYPE_ISO:{
-            
+            send_iso_endpoint(usb_device, &sent);
             break;
         }
         case USBUTIL_USBDEVFS_URB_TYPE_INTERRUPT:{
@@ -711,12 +771,16 @@ int process_urb(struct usb_device* usb_device){
             break;
         }
         case USBUTIL_USBDEVFS_URB_TYPE_CONTROL:{
-
+            send_control_endpoint(usb_device, &sent);
             break;
         }
         case USBUTIL_USBDEVFS_URB_TYPE_BULK:{
             send_bulk_endpoint(usb_device, &sent);
             break;
+        }
+        default:{
+            usbutil_dbg(USBUTIL_OTHER, "unkown transfer? %s %d", __FILE__, __LINE__);
+            return USBUTIL_OTHER;
         }
     }
     return sent;
@@ -795,7 +859,7 @@ int reap_urb(struct usb_device* usb_device, struct usbdevfs_urb *reap){
     return 0;
 }
 
-int _claim_interface(struct usb_device* usb_device, int interface){
+static int _claim_interface(struct usb_device* usb_device, int interface){
     int fd = usb_device->fd;
     if(ioctl(fd, USBUTIL_USBDEVFS_CLAIMINTERFACE, interface) < 0){
         if (errno == ENOENT){
@@ -934,7 +998,6 @@ int release_interface(struct usb_device* usb_device, int interface){
     }
     return 0;
 }
-
 
 
 

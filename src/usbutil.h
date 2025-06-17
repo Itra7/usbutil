@@ -3,6 +3,7 @@
 
 #include "usbconf.h"
 #include "utilities.h"
+#include "usbio.h"
 
 #define usb_interface_desc_MEMBERS_LEN 12
 
@@ -76,12 +77,21 @@ int usbutil_open(const char* idProduct, const char* idVendor, struct usb_device*
 struct usb_device* find_proper_device(const char* idProduct, const char* idVendor, struct usb_device *devs);
 
 void usbutil_get_device_speed(struct usb_device* usb_device);
-
 int set_urb(struct usb_device* usb_device, unsigned char type, 
     unsigned char endpoint, void* buffer, int length);
 int process_urb(struct usb_device* usb_device);
 int claim_interface(struct usb_device* usb_device, int interface);
 int release_interface(struct usb_device* usb_device, int interface);
+int detach_kernel_driver_and_claim(struct usb_device* usb_device, int interface);
+int attach_kernel_driver(struct usb_device* usb_device, int interface);
+int detach_kernel_driver(struct usb_device* usb_device, int interface);
+int reap_urb(struct usb_device* usb_device, struct usbdevfs_urb *reap);
+int free_stream(struct usb_device* usb_device, struct usbdevfs_streams* stream);
+int alloc_stream(struct usb_device* usb_device, struct usbdevfs_streams* stream);
+int drop_privilegies(struct usb_device* usb_device, int capability);
+int get_capabilites(struct usb_device* usb_device);
+int clear_halt(struct usb_device* usb_device, int endpoint);
+void usbutil_close(struct usb_device* head, struct usb_device* target_device);
 
 
 #endif
