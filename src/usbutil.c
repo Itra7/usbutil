@@ -35,6 +35,7 @@
 #define MAX_DEVICES 32
 #define MAX_PATH 256*2
 
+
 int usbutil_init(){
     struct utsname kernel_version;
 
